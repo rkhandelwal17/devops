@@ -1,4 +1,12 @@
+functions:
+- id: bash
+  image: gcr.io/direktiv/apps/bash:1.0
+  type: knative-workflow
 states:
-- id: jens
-  type: noop
-  log: Hello
+- id: bash 
+  type: action
+  action:
+    function: bash
+    input: 
+      commands:
+      - command: ls -la
