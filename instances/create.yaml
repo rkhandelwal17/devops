@@ -5,6 +5,9 @@ functions:
 - id: git
   image: gcr.io/direktiv/apps/git:1.0
   type: knative-workflow
+- id: terraform
+  image: gcr.io/direktiv/apps/terraform:1.0
+  type: knative-workflow
 
 states:
 
@@ -32,15 +35,34 @@ states:
     input: 
       commands:
       - command: git clone https://github.com/jensg-st/devops out/workflow/devops
+  transition: setup
 
-- id: req
+# running terrafrom to create
+- id: setup
   type: action
   action:
-    function: aws-cli
+    function: terraform
     secrets: ["awsacess", "awssecret"]
+    files:
+    - key: devops
+      scope: workflow
+      type: tar.gz
     input:
-     access-key: jq(.secrets.awsacess)
-     secret-key: jq(.secrets.awssecret)
-     region: ap-southeast-2
-     commands:
-     - command: aws ec2 describe-instances
+      variables:
+       - name: instance
+         value: jq(.name)
+      commands:
+      - command: sed -i s/REPLACE/jq(.name)/g devops/terraform/backend.hcl
+      - command: cat devops/terraform/backend.hcl
+      - command: terraform -chdir=devops/terraform init -backend-config=backend.hcl
+      - command: terraform -chdir=devops/terraform apply -auto-approve
+      - command: terraform -chdir=devops/terraform output -json
+      envs:
+      - name: AWS_ACCESS_KEY_ID
+        value: jq(.secrets.awsacess)
+      - name: AWS_SECRET_ACCESS_KEY
+        value: jq(.secrets.awssecret)
+  transform:
+    name: jq(.name)
+    info: jq(.return.terraform[4].result)
+
