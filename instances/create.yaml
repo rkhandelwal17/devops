@@ -1,0 +1,46 @@
+functions:
+- id: aws-cli
+  image: gcr.io/direktiv/apps/aws-cli:1.0
+  type: knative-workflow
+- id: git
+  image: gcr.io/direktiv/apps/git:1.0
+  type: knative-workflow
+
+states:
+
+# theiw flow needs a name for the instance and an owner
+- id: validate-input
+  type: validate
+  schema:
+    title: New Nginx Server
+    type: object
+    required: ["name", "owner"]
+    properties:
+      name:
+        type: string
+      owner:
+        type: string
+        format: email
+        title: Owner
+  transition: clone-tf
+
+# clone the terrafrom project
+- id: clone-tf
+  type: action
+  action:
+    function: git
+    input: 
+      commands:
+      - command: git clone https://github.com/jensg-st/devops out/workflow/devops
+
+- id: req
+  type: action
+  action:
+    function: aws-cli
+    secrets: ["awsacess", "awssecret"]
+    input:
+     access-key: jq(.secrets.awsacess)
+     secret-key: jq(.secrets.awssecret)
+     region: ap-southeast-2
+     commands:
+     - command: aws ec2 describe-instances
