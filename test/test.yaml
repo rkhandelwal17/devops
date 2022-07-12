@@ -7,6 +7,7 @@ functions:
 # it retries because terraform reports finished the deployment
 # but not if the server is up.
 # this one retries 12 * 10s = 2 minutes
+# it stores test results in a workflow variable
 states:
 - id: run-test
   type: action

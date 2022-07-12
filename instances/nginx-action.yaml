@@ -24,6 +24,15 @@ states:
       action:
         type: string
         enum: ["apply", "destroy"]
+  transition: get-bucket
+
+
+# get configure bucket
+- id: get-bucket
+  type: getter
+  variables:
+  - key: bucket
+    scope: namespace
   transition: clone-tf
 
 # clone the terrafrom project
@@ -39,6 +48,7 @@ states:
 # run terraform
 - id: setup
   type: action
+  log: jq(.)
   action:
     function: terraform
     secrets: ["awsacess", "awssecret"]
@@ -52,6 +62,7 @@ states:
          value: jq(.name)
       commands:
       - command: sed -i s/REPLACE/jq(.name)/g devops/terraform/backend.hcl
+      - command: sed -i s/AWSBUCKET/jq(.var.bucket)/g devops/terraform/backend.hcl
       - command: terraform -chdir=devops/terraform init -backend-config=backend.hcl
       - command: terraform -chdir=devops/terraform jq(.action) -auto-approve
       - command: |-
