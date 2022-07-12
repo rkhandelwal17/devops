@@ -1,0 +1,44 @@
+functions:
+- id: send
+  type: knative-workflow
+  image: direktiv/smtp-bare:v3
+
+
+# requires message as input
+states:
+- id: validate-input
+  type: validate
+  schema:
+    type: object
+    required: ["message"]
+    properties:
+      message:
+        type: string
+    additionalProperties: false
+  transition: fetch-receivers
+
+# fetch list of receivers from the workflow variable
+- id: fetch-receivers
+  type: getter
+  variables:
+  - key: inform.json
+    scope: workflow
+  transition: send-emails
+
+# send email via sendgrid
+- id: send-emails
+  type: action
+  log: sending emails to jq(.var."inform.json".email)
+  action:
+    secrets: ["sendgridkey"]
+    function: send
+    input:
+      user: apikey
+      password: jq(.secrets.sendgridkey)
+      tls: true
+      to: jq(.var."inform.json".email)
+      from: jens.gerke@direktiv.io
+      subject: Nginx Deployment Result
+      host: smtp.sendgrid.net
+      port: 587
+      body: jq(.message)

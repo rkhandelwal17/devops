@@ -1,3 +1,13 @@
+# creates or deletes nginx instances with terraform
+#
+# example Commands if called with direktiv-sync:
+# 
+# creating Instances:
+# echo '{ "action": "create", "name": "mynginx" }' | direktiv-sync exec nginx.yaml
+#
+# deleting Instances:
+# echo '{ "action": "delete", "name": "mynginx" }' | direktiv-sync exec nginx.yaml
+
 functions:
 - id: nginx-destroy
   workflow: instances/delete
@@ -6,20 +16,17 @@ functions:
   workflow: instances/create
   type: subflow
 
-# - id: check
-#   workflow: check
-#   type: subflow
-# - id: git
-#   image: gcr.io/direktiv/apps/git:1.0
-#   type: knative-workflow
-# - id: terraform
-#   image: gcr.io/direktiv/apps/terraform:1.0
-#   type: knative-workflow
+# utility functions
+- id: slack
+  workflow: utility/slack
+  type: subflow
+- id: mail
+  workflow: utility/mail
+  type: subflow
 
 states:
 
-# the basic flow requires a name and an action
-# in this case a server can be created or deleted
+# the basic flow requires a name and an action (create or delete)
 - id: validate-input
   type: validate  
   schema:
@@ -38,6 +45,7 @@ states:
   transition: decider
 
 
+# decides which path we are taking for delete or create
 - id: decider
   type: switch
   conditions:
@@ -45,7 +53,7 @@ states:
     transition: execute-delete
   defaultTransition: execute-create
 
-
+# create action
 - id: execute-create
   type: action  
   async: true
@@ -56,7 +64,7 @@ states:
       name: jq(.name)
   transition: wait-for-result
 
-
+# delete action
 - id: execute-delete
   type: action
   async: true
@@ -67,7 +75,9 @@ states:
       name: jq(.name)
   transition: wait-for-result
 
-
+# both routes are generate an event of the same type
+# the context provides information like succesful or not
+# ip addresses and name
 - id: wait-for-result
   type: consumeEvent
   timeout: PT15M
@@ -78,7 +88,24 @@ states:
   catch:
   - error: "direktiv.stateTimeout"
     transition: handle-timeout
+  transition: inform
 
+# call slack and email in parallel
+- id: inform
+  type: parallel
+  mode: and
+  actions:
+  - function: slack
+    input: 
+      message: jq(."io.direktiv.nginx".message)
+  - function: mail
+    input: 
+      message: jq(."io.direktiv.nginx".message)
+  transform: jq( del(.return) )
+
+# this is the timeout handler
+# in real life this would delete the instance 
+# just in case and other cleranup tasks
 - id: handle-timeout
   type: noop
-  log: TIMEOUT!!!
+  log: That did not work at all!

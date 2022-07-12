@@ -1,0 +1,14 @@
+functions:
+- id: post
+  image: direktiv/slackmsg:v1
+  type: knative-workflow
+
+states:
+- id: slack
+  type: action
+  action:
+    secrets: ["slackurl"]
+    function: post
+    input: 
+      message: jq(.message)
+      url: jq(.secrets.slackurl)
