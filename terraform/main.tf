@@ -55,6 +55,6 @@ resource "aws_instance" "webserver" {
    user_data              = "${file("scripts/init.sh")}"
 
    tags = {
-       Name = "Nginx server"
+       Name =  format("nginx instance %s", var.instance)
    }
 }
