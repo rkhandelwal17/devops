@@ -11,7 +11,7 @@ functions:
   
 states:
 
-# theiw flow needs a name for the instance and an owner
+# the flow needs a name for the instance and action
 - id: validate-input
   type: validate
   schema:
@@ -36,6 +36,7 @@ states:
       - command: git clone https://github.com/jensg-st/devops out/workflow/devops
   transition: setup
 
+# run terraform
 - id: setup
   type: action
   action:

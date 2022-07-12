@@ -3,6 +3,10 @@ functions:
   image: gcr.io/direktiv/apps/karate:1.0
   type: knative-workflow
 
+# run karate tests based on test.feature file
+# it retries because terraform reports finished the deployment
+# but not if the server is up.
+# this one retries 12 * 10s = 2 minutes
 states:
 - id: run-test
   type: action

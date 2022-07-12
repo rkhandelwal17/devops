@@ -11,7 +11,7 @@ functions:
 
 states:
 
-# Check for name
+# check for name
 - id: validate-input
   type: validate
   schema:
@@ -23,7 +23,9 @@ states:
         type: string
   transition: check-backend
 
-
+# check for terraform backend
+# if it exists we can delete it
+# otherwise report error
 - id: check-backend
   type: action
   log: checking available backends for jq(.name)
@@ -33,6 +35,7 @@ states:
       name: jq(.name)
   transition: can-proceed
 
+# check the result of the previous test
 - id: can-proceed
   type: switch
   conditions:
@@ -40,7 +43,7 @@ states:
     transition: execute-delete
   defaultTransition: error
 
-
+# execute terraform subflow
 - id: execute-delete
   type: action
   action: 
@@ -50,20 +53,6 @@ states:
       action: destroy
   transition: s3-clean
 
-
-- id: error
-  type: generateEvent
-  event:
-    type: io.direktiv.nginx
-    source: delete
-    context:
-      name: jq(.name)
-      success: false
-      message: nginx jq(.name) does not exist
-    data: 
-      name: jq(.name)
-
-    
 # remove the folder (backend) from s3
 - id: s3-clean
   type: action
@@ -78,6 +67,20 @@ states:
       - command: aws s3 rm s3://direktiv-tf-demo/ --recursive --exclude "*" --include "jq(.name)/*"
   transition: success
 
+# report error
+- id: error
+  type: generateEvent
+  event:
+    type: io.direktiv.nginx
+    source: delete
+    context:
+      name: jq(.name)
+      success: false
+      message: nginx jq(.name) does not exist
+    data: 
+      name: jq(.name)
+
+# report success
 - id: success
   type: generateEvent
   event:
