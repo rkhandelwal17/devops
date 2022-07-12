@@ -48,7 +48,7 @@ states:
 # run terraform
 - id: setup
   type: action
-  log: jq(.)
+  log: using bucket jq(.var.bucket | @base64d)
   action:
     function: terraform
     secrets: ["awsacess", "awssecret"]
@@ -62,7 +62,7 @@ states:
          value: jq(.name)
       commands:
       - command: sed -i s/REPLACE/jq(.name)/g devops/terraform/backend.hcl
-      - command: sed -i s/AWSBUCKET/jq(.var.bucket)/g devops/terraform/backend.hcl
+      - command: sed -i s/AWSBUCKET/jq(.var.bucket | @base64d )/g devops/terraform/backend.hcl
       - command: terraform -chdir=devops/terraform init -backend-config=backend.hcl
       - command: terraform -chdir=devops/terraform jq(.action) -auto-approve
       - command: |-

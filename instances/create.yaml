@@ -52,7 +52,7 @@ states:
       action: apply
   transition: run-tests
   transform:
-    ip: jq(.return.return.terraform[3].result.public_ip.value[0][0])
+    ip: jq(.return.return.terraform[4].result.public_ip.value[0][0])
     name: jq(.name)
 
 # run tests after deployment
