@@ -1,0 +1,44 @@
+functions:
+- id: aws-cli
+  image: gcr.io/direktiv/apps/aws-cli:1.0
+  type: knative-workflow
+
+states:
+
+# the flow needs a name for the instance to check
+- id: validate-input
+  type: validate
+  schema:
+    title: Check Terraform Backend
+    type: object
+    required: ["name"]
+    properties:
+      name:
+        type: string
+  transition: check-s3
+
+# scan the bucket for a directory with the name of the instance
+- id: check-s3
+  type: action
+  action:
+    function: aws-cli
+    secrets: ["awsacess", "awssecret"]
+    input: 
+      access-key: jq(.secrets.awsacess)
+      secret-key: jq(.secrets.awssecret)
+      region: ap-southeast-2
+      commands:
+      - command: aws --output json s3api list-objects --bucket direktiv-tf-demo --prefix jq(.name)
+  transition: check
+
+# if there is no backend, there is no instance so we return false
+# if there is a state file we return true
+- id: check
+  type: switch
+  log: jq(.)
+  conditions:
+  - condition: jq(.return.aws[0].result == "")
+    transform:
+      exists: false
+  defaultTransform: 
+    exists: true

@@ -1,0 +1,84 @@
+functions:
+- id: nginx-destroy
+  workflow: instances/delete
+  type: subflow
+- id: nginx-create
+  workflow: instances/create
+  type: subflow
+
+# - id: check
+#   workflow: check
+#   type: subflow
+# - id: git
+#   image: gcr.io/direktiv/apps/git:1.0
+#   type: knative-workflow
+# - id: terraform
+#   image: gcr.io/direktiv/apps/terraform:1.0
+#   type: knative-workflow
+
+states:
+
+# the basic flow requires a name and an action
+# in this case a server can be created or deleted
+- id: validate-input
+  type: validate  
+  schema:
+    title: New Nginx Server
+    type: object
+    required: ["name", "action"]
+    properties:
+      name:
+        title: Name
+        type: string
+      action:
+        type: string
+        enum: ["create", "delete"]
+        default: create
+        title: Action
+  transition: decider
+
+
+- id: decider
+  type: switch
+  conditions:
+  - condition: jq(if (.action == "delete") then true else false end)
+    transition: execute-delete
+  defaultTransition: execute-create
+
+
+- id: execute-create
+  type: action  
+  async: true
+  log: Creating nginx jq(.name)
+  action:
+    function: nginx-create
+    input:
+      name: jq(.name)
+  transition: wait-for-result
+
+
+- id: execute-delete
+  type: action
+  async: true
+  log: Deleting nginx jq(.name)
+  action:
+    function: nginx-destroy
+    input:
+      name: jq(.name)
+  transition: wait-for-result
+
+
+- id: wait-for-result
+  type: consumeEvent
+  timeout: PT15M
+  event:
+    type: io.direktiv.nginx
+    context:
+      name: jq(.name)
+  catch:
+  - error: "direktiv.stateTimeout"
+    transition: handle-timeout
+
+- id: handle-timeout
+  type: noop
+  log: TIMEOUT!!!

@@ -1,26 +1,29 @@
 functions:
-- id: aws-cli
-  image: gcr.io/direktiv/apps/aws-cli:1.0
-  type: knative-workflow
+- id: check
+  workflow: check
+  type: subflow
 - id: git
   image: gcr.io/direktiv/apps/git:1.0
   type: knative-workflow
 - id: terraform
   image: gcr.io/direktiv/apps/terraform:1.0
   type: knative-workflow
-
+  
 states:
 
 # theiw flow needs a name for the instance and an owner
 - id: validate-input
   type: validate
   schema:
-    title: New Nginx Server
+    title: Nginx Server Action
     type: object
-    required: ["name"]
+    required: ["name", "action"]
     properties:
       name:
         type: string
+      action:
+        type: string
+        enum: ["apply", "destroy"]
   transition: clone-tf
 
 # clone the terrafrom project
@@ -43,11 +46,21 @@ states:
       scope: workflow
       type: tar.gz
     input:
-    #  access-key: jq(.secrets.awsacess)
-    #  secret-key: jq(.secrets.awssecret)
-    #  region: ap-southeast-2
+      variables:
+       - name: instance
+         value: jq(.name)
       commands:
-      - command: ls -la devops
+      - command: sed -i s/REPLACE/jq(.name)/g devops/terraform/backend.hcl
+      - command: terraform -chdir=devops/terraform init -backend-config=backend.hcl
+      - command: terraform -chdir=devops/terraform jq(.action) -auto-approve
+      - command: |-
+          js(
+            if (data["action"] == "apply") {
+              return "terraform -chdir=devops/terraform output -json"
+            } else {
+              return "echo no additional command"
+            }
+          )  
       envs:
       - name: AWS_ACCESS_KEY_ID
         value: jq(.secrets.awsacess)

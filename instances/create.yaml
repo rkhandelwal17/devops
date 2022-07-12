@@ -1,13 +1,13 @@
 functions:
-- id: aws-cli
-  image: gcr.io/direktiv/apps/aws-cli:1.0
-  type: knative-workflow
-- id: git
-  image: gcr.io/direktiv/apps/git:1.0
-  type: knative-workflow
-- id: terraform
-  image: gcr.io/direktiv/apps/terraform:1.0
-  type: knative-workflow
+- id: check-flow
+  workflow: check
+  type: subflow
+- id: run-tests
+  workflow: /test/test
+  type: subflow
+- id: create-flow
+  type: subflow
+  workflow: nginx-action
 
 states:
 
@@ -17,52 +17,76 @@ states:
   schema:
     title: New Nginx Server
     type: object
-    required: ["name", "owner"]
+    required: ["name"]
     properties:
       name:
         type: string
-      owner:
-        type: string
-        format: email
-        title: Owner
-  transition: clone-tf
+  transition: check-backend
 
-# clone the terrafrom project
-- id: clone-tf
+- id: check-backend
   type: action
+  log: checking available backends for jq(.name)
   action:
-    function: git
+    function: check-flow
     input: 
-      commands:
-      - command: git clone https://github.com/jensg-st/devops out/workflow/devops
-  transition: setup
+      name: jq(.name)
+  transition: can-proceed
 
-# running terrafrom to create
-- id: setup
+- id: can-proceed
+  type: switch
+  conditions:
+  - condition: jq(.return.exists)
+    transition: error
+  defaultTransition: execute-create
+
+- id: execute-create
+  type: action
+  action: 
+    function: create-flow
+    input: 
+      name: jq(.name)
+      action: apply
+  transition: run-tests
+  transform:
+    ip: jq(.return.return.terraform[3].result.public_ip.value[0][0])
+    name: jq(.name)
+
+- id: run-tests
   type: action
   action:
-    function: terraform
-    secrets: ["awsacess", "awssecret"]
-    files:
-    - key: devops
-      scope: workflow
-      type: tar.gz
+    function: run-tests
     input:
-      variables:
-       - name: instance
-         value: jq(.name)
-      commands:
-      - command: sed -i s/REPLACE/jq(.name)/g devops/terraform/backend.hcl
-      - command: cat devops/terraform/backend.hcl
-      - command: terraform -chdir=devops/terraform init -backend-config=backend.hcl
-      - command: terraform -chdir=devops/terraform apply -auto-approve
-      - command: terraform -chdir=devops/terraform output -json
-      envs:
-      - name: AWS_ACCESS_KEY_ID
-        value: jq(.secrets.awsacess)
-      - name: AWS_SECRET_ACCESS_KEY
-        value: jq(.secrets.awssecret)
-  transform:
-    name: jq(.name)
-    info: jq(.return.terraform[4].result)
+      ip: jq(.ip)
+  transition: success
+  catch:
+  - error: "*"
+    transition: error
+
+- id: success
+  type: generateEvent
+  log: jq(.)
+  event:
+    type: io.direktiv.nginx
+    source: create
+    context:
+      name: jq(.name)
+      success: true
+      message: 'nginx jq(.name) http://jq(.ip) created'
+    data: 
+      name: jq(.name)
+      ip: jq(.ip)
+      test: jq(.return.test)
+
+  
+- id: error
+  type: generateEvent
+  event:
+    type: io.direktiv.nginx
+    source: create
+    context:
+      name: jq(.name)
+      success: false
+      message: nginx jq(.name) deployment failed
+    data: 
+      name: jq(.name)
 

@@ -1,0 +1,91 @@
+functions:
+- id: aws-cli
+  image: gcr.io/direktiv/apps/aws-cli:1.0
+  type: knative-workflow
+- id: delete-flow
+  type: subflow
+  workflow: nginx-action
+- id: check-flow
+  workflow: check
+  type: subflow
+
+states:
+
+# Check for name
+- id: validate-input
+  type: validate
+  schema:
+    title: Delete Nginx Server
+    type: object
+    required: ["name"]
+    properties:
+      name:
+        type: string
+  transition: check-backend
+
+
+- id: check-backend
+  type: action
+  log: checking available backends for jq(.name)
+  action:
+    function: check-flow
+    input: 
+      name: jq(.name)
+  transition: can-proceed
+
+- id: can-proceed
+  type: switch
+  conditions:
+  - condition: jq(.return.exists)
+    transition: execute-delete
+  defaultTransition: error
+
+
+- id: execute-delete
+  type: action
+  action: 
+    function: delete-flow
+    input: 
+      name: jq(.name)
+      action: destroy
+  transition: s3-clean
+
+
+- id: error
+  type: generateEvent
+  event:
+    type: io.direktiv.nginx
+    source: delete
+    context:
+      name: jq(.name)
+      success: false
+      message: nginx jq(.name) does not exist
+    data: 
+      name: jq(.name)
+
+    
+# remove the folder (backend) from s3
+- id: s3-clean
+  type: action
+  action:
+    function: aws-cli
+    secrets: ["awsacess", "awssecret"]
+    input: 
+      access-key: jq(.secrets.awsacess)
+      secret-key: jq(.secrets.awssecret)
+      region: ap-southeast-2
+      commands:
+      - command: aws s3 rm s3://direktiv-tf-demo/ --recursive --exclude "*" --include "jq(.name)/*"
+  transition: success
+
+- id: success
+  type: generateEvent
+  event:
+    type: io.direktiv.nginx
+    source: delete
+    context:
+      name: jq(.name)
+      success: true
+      message: nginx jq(.name) deleted
+    data: 
+      name: jq(.name)
