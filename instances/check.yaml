@@ -28,7 +28,7 @@ states:
       secret-key: jq(.secrets.awssecret)
       region: ap-southeast-2
       commands:
-      - command: aws --output json s3api list-objects --bucket direktiv-tf-demo --prefix jq(.name)
+      - command: aws --output json s3api list-objects --bucket do1-direktiv-tf-demo --prefix jq(.name)
   transition: check
 
 # if there is no backend, there is no instance so we return false
