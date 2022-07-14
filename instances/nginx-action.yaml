@@ -42,7 +42,7 @@ states:
     function: git
     input: 
       commands:
-      - command: git clone https://github.com/jensg-st/devops out/workflow/devops
+      - command: git clone https://github.com/rkhandelwal17/devops out/workflow/devops
   transition: setup
 
 # run terraform
