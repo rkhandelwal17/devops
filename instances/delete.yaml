@@ -64,7 +64,7 @@ states:
       secret-key: jq(.secrets.awssecret)
       region: ap-southeast-2
       commands:
-      - command: aws s3 rm s3://direktiv-tf-demo/ --recursive --exclude "*" --include "jq(.name)/*"
+      - command: aws s3 rm s3://do1-direktiv-tf-demo/ --recursive --exclude "*" --include "jq(.name)/*"
   transition: success
 
 # report error
